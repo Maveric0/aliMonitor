@@ -108,14 +108,31 @@ def run_cmd(
     )
 
 
-def load_settings() -> dict:
-    settings = load_json(SETTINGS_PATH, None)
-    if settings is None:
-        template_names = [path.name for path in [SETTINGS_TEMPLATE_PATH, LEGACY_SETTINGS_TEMPLATE_PATH] if path.exists()]
-        template_hint = template_names[0] if template_names else SETTINGS_TEMPLATE_PATH.name
-        raise RuntimeError(
-            f"missing {SETTINGS_PATH}. Copy {template_hint} to settings.json first."
-        )
+def settings_template_path() -> pathlib.Path:
+    if SETTINGS_TEMPLATE_PATH.exists():
+        return SETTINGS_TEMPLATE_PATH
+    if LEGACY_SETTINGS_TEMPLATE_PATH.exists():
+        return LEGACY_SETTINGS_TEMPLATE_PATH
+    raise RuntimeError(f"template missing: {SETTINGS_TEMPLATE_PATH} or {LEGACY_SETTINGS_TEMPLATE_PATH}")
+
+
+def settings_exists() -> bool:
+    return SETTINGS_PATH.exists()
+
+
+def load_settings_template() -> dict:
+    template_path = settings_template_path()
+    template = load_json(template_path, None)
+    if not isinstance(template, dict):
+        raise RuntimeError(f"invalid settings template: {template_path}")
+    return template
+
+
+def normalize_settings(raw_settings: dict) -> dict:
+    if not isinstance(raw_settings, dict):
+        raise RuntimeError("settings.json must be a JSON object")
+
+    settings = copy.deepcopy(raw_settings)
 
     required = ["komari", "cloudflare", "ssh"]
     missing = [k for k in required if k not in settings]
@@ -156,8 +173,19 @@ def load_settings() -> dict:
     return settings
 
 
+def load_settings() -> dict:
+    settings = load_json(SETTINGS_PATH, None)
+    if settings is None:
+        template_names = [path.name for path in [SETTINGS_TEMPLATE_PATH, LEGACY_SETTINGS_TEMPLATE_PATH] if path.exists()]
+        template_hint = template_names[0] if template_names else SETTINGS_TEMPLATE_PATH.name
+        raise RuntimeError(
+            f"missing {SETTINGS_PATH}. Copy {template_hint} to settings.json first."
+        )
+    return normalize_settings(settings)
+
+
 def save_settings(settings: dict) -> None:
-    save_json(SETTINGS_PATH, settings)
+    save_json(SETTINGS_PATH, normalize_settings(settings))
 
 
 def normalize_uuid_list(raw_value) -> list[str]:

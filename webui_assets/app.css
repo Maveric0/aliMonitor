@@ -64,6 +64,12 @@ select {
   gap: 18px;
 }
 
+.setup-panel {
+  display: grid;
+  gap: 16px;
+  margin-bottom: 18px;
+}
+
 .panel {
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.02), rgba(255, 255, 255, 0.01));
   border: 1px solid var(--line);
@@ -462,6 +468,12 @@ h2 {
   margin-top: 14px;
 }
 
+.setup-meta {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
 .info-block {
   padding: 12px;
   border-radius: var(--radius-sm);
@@ -531,6 +543,13 @@ select:focus {
   outline: none;
   border-color: var(--accent);
   box-shadow: 0 0 0 3px rgba(217, 221, 229, 0.12);
+}
+
+.setup-editor {
+  min-height: 420px;
+  resize: vertical;
+  font-family: Consolas, "Courier New", monospace;
+  line-height: 1.5;
 }
 
 .small-input {
@@ -689,6 +708,7 @@ select:focus {
   }
 
   .split-grid,
+  .setup-meta,
   .domain-summary-grid,
   .form-grid,
   .rule-grid {

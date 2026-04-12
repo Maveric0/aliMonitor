@@ -1,5 +1,6 @@
 ﻿const state = {
   overview: null,
+  setup: null,
   busy: false,
   flash: { type: "", message: "" },
   domainModal: null,
@@ -14,6 +15,10 @@ let flashTimer = null;
 
 function $(id) {
   return document.getElementById(id);
+}
+
+function isSetupMode() {
+  return !!state.setup && !state.setup.configured;
 }
 
 function escapeHtml(value) {
@@ -148,6 +153,12 @@ function syncIeplDraftFromInputs() {
   if (listenInput) draft.listen_port = listenInput.value.trim();
   if (hostInput) draft.remote_host = hostInput.value.trim();
   if (portInput) draft.remote_port = portInput.value.trim();
+}
+
+function syncSetupDraftFromInput() {
+  const editor = $("setup-editor");
+  if (!editor || !state.setup) return;
+  state.setup.settingsText = editor.value;
 }
 
 function parseRequiredInt(value, label) {
@@ -404,6 +415,18 @@ async function runBusyAction(callback) {
   }
 }
 
+async function refreshBootstrap() {
+  const payload = await apiGet("/api/bootstrap");
+  state.setup = {
+    ...payload.data,
+    settingsText: payload.data.settings_text || "",
+  };
+  if (isSetupMode()) {
+    state.overview = null;
+  }
+  render();
+}
+
 async function refreshOverview(options = {}) {
   const payload = await apiGet("/api/overview");
   state.overview = payload.data;
@@ -476,6 +499,23 @@ function formatRuleSummary(rules) {
 function renderStats() {
   const root = $("stats");
   if (!root) return;
+  if (isSetupMode()) {
+    root.innerHTML = `
+      <div class="stat">
+        <div class="stat-label">状态</div>
+        <div class="stat-value">初始化</div>
+      </div>
+      <div class="stat">
+        <div class="stat-label">模板</div>
+        <div class="stat-value">${escapeHtml(state.setup?.template_source || "-")}</div>
+      </div>
+      <div class="stat">
+        <div class="stat-label">settings.json</div>
+        <div class="stat-value">${state.setup?.settings_exists ? "已存在" : "未创建"}</div>
+      </div>
+    `;
+    return;
+  }
   if (!state.overview) {
     root.innerHTML = '<div class="empty">loading...</div>';
     return;
@@ -499,6 +539,53 @@ function renderStats() {
       `,
     )
     .join("");
+}
+
+function renderSetup() {
+  const panel = $("setup-panel");
+  const statusRoot = $("setup-status");
+  const pathsRoot = $("setup-paths");
+  const validationRoot = $("setup-validation");
+  const editor = $("setup-editor");
+  if (!panel || !statusRoot || !pathsRoot || !validationRoot || !editor) return;
+  if (!state.setup) {
+    panel.hidden = true;
+    return;
+  }
+
+  panel.hidden = !isSetupMode();
+  if (!isSetupMode()) {
+    validationRoot.className = "flash";
+    validationRoot.textContent = "";
+    return;
+  }
+
+  statusRoot.innerHTML = `
+    <div><strong>配置文件</strong> ${state.setup.settings_exists ? "已存在" : "未创建"}</div>
+    <div><strong>模板来源</strong> ${escapeHtml(state.setup.template_source || "-")}</div>
+    <div><strong>下一步</strong> 保存后自动尝试启动 aliMonitor.service</div>
+  `;
+  pathsRoot.innerHTML = `
+    <div><strong>settings.json</strong> <span class="mono">${escapeHtml(state.setup.paths?.settings || "-")}</span></div>
+    <div><strong>komari_state.json</strong> <span class="mono">${escapeHtml(state.setup.paths?.state || "-")}</span></div>
+    <div><strong>forward_installed.json</strong> <span class="mono">${escapeHtml(state.setup.paths?.frontend_installed || "-")}</span></div>
+  `;
+  if (state.setup.validation_error) {
+    validationRoot.className = "flash show error";
+    validationRoot.textContent = state.setup.validation_error;
+  } else {
+    validationRoot.className = "flash";
+    validationRoot.textContent = "";
+  }
+  if (editor.value !== state.setup.settingsText && document.activeElement !== editor) {
+    editor.value = state.setup.settingsText || "";
+  }
+}
+
+function renderAppMode() {
+  $("workspace")?.toggleAttribute("hidden", isSetupMode());
+  $("sync-all-btn")?.toggleAttribute("hidden", isSetupMode());
+  $("add-domain-btn")?.toggleAttribute("hidden", isSetupMode());
 }
 
 function renderDomains() {
@@ -1055,6 +1142,8 @@ function syncTabState() {
 
 function render() {
   renderFlash();
+  renderAppMode();
+  renderSetup();
   renderStats();
   renderDomains();
   renderFrontendNodes();
@@ -1064,6 +1153,22 @@ function render() {
   renderLogs();
   renderModals();
   syncTabState();
+}
+
+async function submitSetup() {
+  syncSetupDraftFromInput();
+  const settings_text = String(state.setup?.settingsText || "").trim();
+  if (!settings_text) {
+    throw new Error("settings.json 不能为空");
+  }
+  await runBusyAction(async () => {
+    const response = await apiPost("/api/setup-save", { settings_text });
+    showFlash("success", response.result.message);
+    await refreshBootstrap();
+    if (!isSetupMode()) {
+      await refreshOverview({ keepFlash: true });
+    }
+  });
 }
 
 async function handleAction(action, button) {
@@ -1202,6 +1307,10 @@ async function handleAction(action, button) {
 }
 
 function handleDocumentInput(event) {
+  if (event.target.id === "setup-editor") {
+    syncSetupDraftFromInput();
+    return;
+  }
   if (event.target.id === "domain-preferred-primary") {
     syncDomainDraftFromInputs();
     renderModals();
@@ -1223,6 +1332,9 @@ function handleDocumentKeydown(event) {
     }
   }
   if (event.key !== "Enter" || event.shiftKey || event.target.tagName === "TEXTAREA") return;
+  if (isSetupMode()) {
+    return;
+  }
   if (state.domainModal?.open) {
     event.preventDefault();
     try {
@@ -1259,15 +1371,25 @@ async function bootstrap() {
   });
   $("sync-all-btn")?.addEventListener("click", () =>
     runBusyAction(async () => {
-      const response = await apiPost("/api/sync", {});
-      showFlash("success", response.result.message);
-      await refreshOverview({ keepFlash: true });
+      if (isSetupMode()) {
+        await refreshBootstrap();
+        showFlash("success", "setup state refreshed");
+      } else {
+        const response = await apiPost("/api/sync", {});
+        showFlash("success", response.result.message);
+        await refreshOverview({ keepFlash: true });
+      }
     }),
   );
   $("refresh-btn")?.addEventListener("click", () =>
     runBusyAction(async () => {
-      await refreshOverview();
-      showFlash("success", "overview refreshed");
+      if (isSetupMode()) {
+        await refreshBootstrap();
+        showFlash("success", "setup draft reloaded");
+      } else {
+        await refreshOverview();
+        showFlash("success", "overview refreshed");
+      }
     }),
   );
   $("refresh-logs-btn")?.addEventListener("click", () =>
@@ -1278,6 +1400,15 @@ async function bootstrap() {
   );
   $("add-domain-btn")?.addEventListener("click", openCreateDomainModal);
   $("add-iepl-rule-btn")?.addEventListener("click", openCreateIeplRuleModal);
+  $("setup-reload-btn")?.addEventListener("click", () =>
+    runBusyAction(async () => {
+      await refreshBootstrap();
+      showFlash("success", "setup template reloaded");
+    }),
+  );
+  $("setup-save-btn")?.addEventListener("click", () =>
+    submitSetup().catch((error) => showFlash("error", error.message || String(error))),
+  );
   $("cleanup-frontend-legacy-btn")?.addEventListener("click", () =>
     runBusyAction(async () => {
       const response = await apiPost("/api/cleanup-frontend-legacy", {});
@@ -1314,7 +1445,10 @@ async function bootstrap() {
   document.addEventListener("keydown", handleDocumentKeydown);
   setBusy(true);
   try {
-    await refreshOverview();
+    await refreshBootstrap();
+    if (!isSetupMode()) {
+      await refreshOverview();
+    }
   } catch (error) {
     showFlash("error", error.message || String(error));
   } finally {

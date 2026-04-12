@@ -3,6 +3,8 @@ import argparse
 import copy
 import json
 import pathlib
+import shutil
+import subprocess
 import threading
 import traceback
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -29,6 +31,70 @@ def read_text(path: pathlib.Path) -> str:
     if not path.exists():
         raise RuntimeError(f"missing static file: {path}")
     return path.read_text(encoding="utf-8")
+
+
+def read_settings_text_for_setup() -> str:
+    if core.SETTINGS_PATH.exists():
+        return core.SETTINGS_PATH.read_text(encoding="utf-8")
+    return json.dumps(core.load_settings_template(), ensure_ascii=False, indent=2)
+
+
+def build_setup_payload() -> dict:
+    configured = False
+    validation_error = ""
+    redacted_settings = None
+    settings_text = ""
+    if core.settings_exists():
+        try:
+            settings = core.load_settings()
+            configured = True
+            redacted_settings = redact_settings(settings)
+        except Exception as exc:
+            validation_error = str(exc)
+            settings_text = read_settings_text_for_setup()
+    else:
+        settings_text = read_settings_text_for_setup()
+    return {
+        "configured": configured,
+        "validation_error": validation_error,
+        "settings_exists": core.settings_exists(),
+        "settings_text": settings_text,
+        "template_source": str(core.settings_template_path().name),
+        "paths": {
+            "settings": str(core.SETTINGS_PATH),
+            "state": str(core.STATE_PATH),
+            "frontend_installed": str(core.FORWARD_INSTALLED_PATH),
+            "legacy_frontend_config": str(core.REALM_CONFIG_PATH),
+            "iepl_config": str(core.IEPL_CONFIG_PATH),
+        },
+        "settings": redacted_settings,
+    }
+
+
+def ensure_monitor_service_started() -> str:
+    systemctl = shutil.which("systemctl")
+    if not systemctl:
+        return "settings saved; systemctl not available, start aliMonitor.service manually"
+    try:
+        subprocess.run(
+            [systemctl, "daemon-reload"],
+            check=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            timeout=30,
+        )
+        subprocess.run(
+            [systemctl, "enable", "--now", "aliMonitor.service"],
+            check=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            timeout=30,
+        )
+    except Exception as exc:
+        return f"settings saved, but failed to start aliMonitor.service automatically: {exc}"
+    return ""
 
 
 def redact_settings(settings: dict) -> dict:
@@ -493,6 +559,23 @@ def action_clear_frontend_node_traffic_limit(uuid: str) -> dict:
     return {"message": f"traffic limit reset to default for {uuid}"}
 
 
+def action_setup_save(payload: dict) -> dict:
+    settings_text = str(payload.get("settings_text", "")).strip()
+    if not settings_text:
+        raise ApiError("settings_text is required")
+    try:
+        raw_settings = json.loads(settings_text)
+    except json.JSONDecodeError as exc:
+        raise ApiError(f"invalid settings JSON: {exc}") from exc
+    normalized = core.normalize_settings(raw_settings)
+    core.save_settings(normalized)
+    warning = ensure_monitor_service_started()
+    message = "settings.json saved successfully"
+    if warning:
+        message = f"{message}; {warning}"
+    return {"message": message, "warning": warning}
+
+
 class Handler(BaseHTTPRequestHandler):
     server_version = "aliMonitorWebUI/2"
 
@@ -555,6 +638,9 @@ class Handler(BaseHTTPRequestHandler):
             if parsed.path == "/api/overview":
                 self._send_json({"ok": True, "data": build_overview()})
                 return
+            if parsed.path == "/api/bootstrap":
+                self._send_json({"ok": True, "data": build_setup_payload()})
+                return
             if parsed.path == "/api/logs":
                 self._send_json({"ok": True, "data": read_log_tail()})
                 return
@@ -611,6 +697,8 @@ class Handler(BaseHTTPRequestHandler):
                 result = self._perform_action(lambda: action_set_frontend_node_traffic_limit(uuid, limit_gb))
             elif parsed.path == "/api/clear-frontend-node-traffic-limit":
                 result = self._perform_action(lambda: action_clear_frontend_node_traffic_limit(self._require_string(payload, "uuid")))
+            elif parsed.path == "/api/setup-save":
+                result = self._perform_action(lambda: action_setup_save(payload))
             else:
                 self._send_json({"ok": False, "error": f"not found: {parsed.path}"}, status=404)
                 return

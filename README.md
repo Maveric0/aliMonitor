@@ -32,12 +32,18 @@ bash upgrade.sh
 
 ## Deployment assets
 
-- `run.sh`: one-click first install for Linux servers
-- `upgrade.sh`: one-click code upgrade that preserves runtime state
+- `run.sh`: one-click first install for Linux servers, starts WebUI even before `settings.json` exists
+- `upgrade.sh`: one-click code upgrade that preserves runtime state and migrates legacy install layout
 - `scripts/install.sh`: install and enable systemd services
 - `scripts/check.sh`: non-destructive package checks
 - `systemd/`: `aliMonitor.service` and `aliMonitor-webui.service`
 - `docs/DEPLOY.md`: deployment notes
+
+## WebUI setup flow
+
+On a fresh install, `run.sh` starts the WebUI first.
+If `settings.json` is missing or invalid, `aliMonitor.service` stays stopped and the WebUI exposes an initialization editor for `settings.json`.
+After saving valid settings in the WebUI, it will try to start `aliMonitor.service` automatically.
 
 ## Runtime-generated files
 

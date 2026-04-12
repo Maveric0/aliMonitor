@@ -3,6 +3,15 @@ set -euo pipefail
 
 SOURCE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 TARGET_DIR="/opt/aliMonitor"
+LEGACY_TARGET_DIR="$TARGET_DIR/deploy/aliMonitor"
+PRESERVE_FILES=(
+  settings.json
+  komari_state.json
+  forward_installed.json
+  tag_cache.json
+  config.toml
+  iepl_config.toml
+)
 
 require_cmd() {
   local cmd="$1"
@@ -55,6 +64,56 @@ verify_source_tree() {
   require_file "$SOURCE_DIR/webui_assets/app.js"
 }
 
+copy_preserved_file() {
+  local rel="$1"
+  local bases=("$TARGET_DIR" "$LEGACY_TARGET_DIR")
+  local base
+  if [ "$rel" = "config.toml" ] || [ "$rel" = "iepl_config.toml" ]; then
+    bases=("$LEGACY_TARGET_DIR" "$TARGET_DIR")
+  fi
+  for base in "${bases[@]}"; do
+    if [ -e "$base/$rel" ]; then
+      mkdir -p "$backup_dir/$(dirname "$rel")"
+      cp -a "$base/$rel" "$backup_dir/$rel"
+      return
+    fi
+  done
+}
+
+migrate_legacy_runtime_files() {
+  if [ ! -d "$LEGACY_TARGET_DIR" ]; then
+    return
+  fi
+  local rel
+  for rel in "${PRESERVE_FILES[@]}"; do
+    if [ "$rel" = "config.toml" ] || [ "$rel" = "iepl_config.toml" ]; then
+      if [ -e "$LEGACY_TARGET_DIR/$rel" ]; then
+        mkdir -p "$TARGET_DIR/$(dirname "$rel")"
+        cp -a "$LEGACY_TARGET_DIR/$rel" "$TARGET_DIR/$rel"
+      fi
+    elif [ ! -e "$TARGET_DIR/$rel" ] && [ -e "$LEGACY_TARGET_DIR/$rel" ]; then
+      mkdir -p "$TARGET_DIR/$(dirname "$rel")"
+      cp -a "$LEGACY_TARGET_DIR/$rel" "$TARGET_DIR/$rel"
+    fi
+  done
+}
+
+settings_ready() {
+  if [ ! -e "$TARGET_DIR/settings.json" ]; then
+    return 1
+  fi
+  if (
+    cd "$TARGET_DIR"
+    python3 - <<'PY' >/dev/null 2>&1
+import failover_realm as fr
+fr.load_settings()
+PY
+  ); then
+    return 0
+  fi
+  return 1
+}
+
 sync_project() {
   if [ "$SOURCE_DIR" = "$TARGET_DIR" ]; then
     return
@@ -67,11 +126,8 @@ sync_project() {
   backup_dir="$(mktemp -d)"
   trap 'rm -rf "$backup_dir"' EXIT
 
-  for rel in settings.json komari_state.json forward_installed.json tag_cache.json; do
-    if [ -e "$TARGET_DIR/$rel" ]; then
-      mkdir -p "$backup_dir/$(dirname "$rel")"
-      cp -a "$TARGET_DIR/$rel" "$backup_dir/$rel"
-    fi
+  for rel in "${PRESERVE_FILES[@]}"; do
+    copy_preserved_file "$rel"
   done
 
   find "$TARGET_DIR" -mindepth 1 -maxdepth 1 -exec rm -rf {} +
@@ -106,29 +162,17 @@ sync_project() {
   rm -rf "$backup_dir"
 }
 
-ensure_settings() {
-  if [ -e "$TARGET_DIR/settings.json" ]; then
-    return 0
-  fi
-
-  cp "$TARGET_DIR/settings.multi-domain.example.json" "$TARGET_DIR/settings.json"
-  echo "[!] settings.json was missing, copied from settings.multi-domain.example.json"
-  echo "[!] edit $TARGET_DIR/settings.json first, then rerun: bash run.sh"
-  return 1
-}
-
 main() {
   ensure_linux
   ensure_root "$@"
   verify_source_tree
   sync_project
+  migrate_legacy_runtime_files
 
   cd "$TARGET_DIR"
-  if ! ensure_settings; then
-    exit 0
+  if settings_ready; then
+    bash scripts/check.sh
   fi
-
-  bash scripts/check.sh
   bash scripts/install.sh
 
   echo "[+] deployment complete"

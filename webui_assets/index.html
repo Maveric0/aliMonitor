@@ -26,7 +26,36 @@
       <div id="stats" class="stats-grid"></div>
     </header>
 
-    <div class="workspace">
+    <section id="setup-panel" class="panel setup-panel" hidden>
+      <div class="section-head">
+        <div>
+          <p class="section-kicker">Setup</p>
+          <h2>初始化配置</h2>
+          <p class="hero-copy">首次部署时直接在 WebUI 完成 `settings.json` 初始化。保存成功后会尝试自动启动监控服务。</p>
+        </div>
+      </div>
+      <div class="setup-meta">
+        <div class="info-block">
+          <h3>状态</h3>
+          <div id="setup-status" class="info-list"></div>
+        </div>
+        <div class="info-block">
+          <h3>路径</h3>
+          <div id="setup-paths" class="info-list"></div>
+        </div>
+      </div>
+      <div id="setup-validation" class="flash"></div>
+      <div class="field">
+        <label for="setup-editor">settings.json</label>
+        <textarea id="setup-editor" class="input setup-editor" spellcheck="false"></textarea>
+      </div>
+      <div class="button-row">
+        <button id="setup-reload-btn" class="btn btn-ghost">重新加载模板</button>
+        <button id="setup-save-btn" class="btn btn-primary">保存并启用监控</button>
+      </div>
+    </section>
+
+    <div id="workspace" class="workspace">
       <section class="panel diagnostics-shell">
         <div class="section-head">
           <div>

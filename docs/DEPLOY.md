@@ -14,13 +14,12 @@ bash run.sh
 
 - re-run itself with `sudo` when needed
 - sync the project to `/opt/aliMonitor`
-- preserve an existing `settings.json` and runtime state files
-- create `/opt/aliMonitor/settings.json` from `settings.multi-domain.example.json` if it is missing
-- run `scripts/check.sh`
-- install and enable the two systemd services
+- preserve an existing `settings.json`, forwarding config, and runtime state files
+- start `aliMonitor-webui.service`
+- start `aliMonitor.service` only when `settings.json` exists and passes validation
 
-If `settings.json` had to be created from the template, the script will stop after creating it.
-Edit the file and run `bash run.sh` again.
+If `settings.json` is missing or invalid, open the WebUI and complete initialization there.
+After saving valid settings in the WebUI, it will try to start `aliMonitor.service` automatically.
 
 ## Upgrade
 
@@ -36,8 +35,12 @@ bash upgrade.sh
 - `komari_state.json`
 - `forward_installed.json`
 - `tag_cache.json`
+- `config.toml`
+- `iepl_config.toml`
 
-After syncing the new code, it runs `scripts/check.sh`, reinstalls the systemd units, and restarts both services.
+It also looks for runtime files in the old legacy layout `/opt/aliMonitor/deploy/aliMonitor` and migrates them into the new root layout automatically.
+
+After syncing the new code, it reinstalls the systemd units, restarts the WebUI service, and restarts `aliMonitor.service` only when the migrated `settings.json` is valid.
 
 ## Services
 
