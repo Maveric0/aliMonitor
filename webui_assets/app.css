@@ -333,13 +333,12 @@ h2 {
 
 .domain-card-actions {
   display: flex;
-  flex-wrap: nowrap;
+  flex-wrap: wrap;
   justify-content: flex-end;
   gap: 8px;
-  align-items: center;
+  align-items: flex-start;
   max-width: 100%;
-  overflow-x: auto;
-  overflow-y: hidden;
+  overflow: visible;
   padding-bottom: 4px;
 }
 
