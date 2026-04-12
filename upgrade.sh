@@ -68,9 +68,6 @@ copy_preserved_file() {
   local rel="$1"
   local bases=("$TARGET_DIR" "$LEGACY_TARGET_DIR")
   local base
-  if [ "$rel" = "config.toml" ] || [ "$rel" = "iepl_config.toml" ]; then
-    bases=("$LEGACY_TARGET_DIR" "$TARGET_DIR")
-  fi
   for base in "${bases[@]}"; do
     if [ -e "$base/$rel" ]; then
       mkdir -p "$backup_dir/$(dirname "$rel")"
@@ -86,12 +83,7 @@ migrate_legacy_runtime_files() {
   fi
   local rel
   for rel in "${PRESERVE_FILES[@]}"; do
-    if [ "$rel" = "config.toml" ] || [ "$rel" = "iepl_config.toml" ]; then
-      if [ -e "$LEGACY_TARGET_DIR/$rel" ]; then
-        mkdir -p "$TARGET_DIR/$(dirname "$rel")"
-        cp -a "$LEGACY_TARGET_DIR/$rel" "$TARGET_DIR/$rel"
-      fi
-    elif [ ! -e "$TARGET_DIR/$rel" ] && [ -e "$LEGACY_TARGET_DIR/$rel" ]; then
+    if [ ! -e "$TARGET_DIR/$rel" ] && [ -e "$LEGACY_TARGET_DIR/$rel" ]; then
       mkdir -p "$TARGET_DIR/$(dirname "$rel")"
       cp -a "$LEGACY_TARGET_DIR/$rel" "$TARGET_DIR/$rel"
     fi

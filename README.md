@@ -39,6 +39,8 @@ bash upgrade.sh
 - `systemd/`: `aliMonitor.service` and `aliMonitor-webui.service`
 - `docs/DEPLOY.md`: deployment notes
 
+When both `/opt/aliMonitor` and `/opt/aliMonitor/deploy/aliMonitor` exist during migration, the root-level `config.toml` and `iepl_config.toml` are treated as authoritative. The legacy nested copies are only used as a fallback when the root files are missing.
+
 ## WebUI setup flow
 
 On a fresh install, `run.sh` starts the WebUI first.

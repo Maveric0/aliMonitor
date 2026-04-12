@@ -39,6 +39,7 @@ bash upgrade.sh
 - `iepl_config.toml`
 
 It also looks for runtime files in the old legacy layout `/opt/aliMonitor/deploy/aliMonitor` and migrates them into the new root layout automatically.
+If both layouts exist, the root `/opt/aliMonitor/config.toml` and `/opt/aliMonitor/iepl_config.toml` files are treated as authoritative; the legacy nested copies are only used when the root files are missing.
 
 After syncing the new code, it reinstalls the systemd units, restarts the WebUI service, and restarts `aliMonitor.service` only when the migrated `settings.json` is valid.
 
