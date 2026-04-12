@@ -1,0 +1,33 @@
+{
+  "check_interval": 10,
+  "fail_threshold": 3,
+  "switch_cooldown": 60,
+  "frontend_node_traffic_limits_gb": {},
+  "komari": {
+    "base_url": "https://komari.example.com",
+    "api_key": "komari-api-key",
+    "group_name": "IX",
+    "exclude_name_keywords": [
+      "IEPL"
+    ],
+    "request_timeout": 20,
+    "stale_after_sec": 180
+  },
+  "iepl_target_ips": {
+    "replace-with-iepl-node-uuid": "10.0.0.2"
+  },
+  "cloudflare": {
+    "api_token": "cf-api-token",
+    "zone_id": "cloudflare-zone-id",
+    "record_name": "speedtest.example.com",
+    "record_ttl": 60,
+    "proxied": false
+  },
+  "ssh": {
+    "user": "root",
+    "port": 22,
+    "password": "ssh-password",
+    "private_key": "~/.ssh/id_rsa",
+    "connect_timeout": 10
+  }
+}

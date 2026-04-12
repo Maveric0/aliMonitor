@@ -1,0 +1,15 @@
+[[endpoints]]
+listen = "0.0.0.0:12345"
+remote = "example.com:12345"
+
+[[endpoints]]
+listen = "0.0.0.0:12346"
+remote = "example.com:12346"
+
+[[endpoints]]
+listen = "0.0.0.0:12348"
+remote = "example.com:40980"
+
+[[endpoints]]
+listen = "0.0.0.0:40981"
+remote = "example.com:40981"

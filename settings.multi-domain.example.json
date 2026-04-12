@@ -1,0 +1,67 @@
+{
+  "check_interval": 10,
+  "fail_threshold": 3,
+  "switch_cooldown": 60,
+  "frontend_node_traffic_limits_gb": {
+    "replace-with-node-uuid-1": 470
+  },
+  "komari": {
+    "base_url": "https://komari.example.com",
+    "api_key": "komari-api-key",
+    "group_name": "IX",
+    "exclude_name_keywords": [
+      "IEPL"
+    ],
+    "request_timeout": 20,
+    "stale_after_sec": 180
+  },
+  "iepl_target_ips": {
+    "replace-with-iepl-node-uuid": "10.0.0.2"
+  },
+  "cloudflare": {
+    "api_token": "cf-api-token",
+    "zone_id": "cloudflare-zone-id",
+    "record_ttl": 60,
+    "proxied": false
+  },
+  "frontend_domains": {
+    "speedtest-a.example.com": {
+      "record_name": "speedtest-a.example.com",
+      "enabled": true,
+      "preferred_primary_uuid": "replace-with-node-uuid-1",
+      "backup_uuids": [
+        "replace-with-node-uuid-2"
+      ],
+      "forward_rules": [
+        {
+          "listen_port": 80,
+          "remote_host": "1.2.3.4",
+          "remote_port": 8080
+        }
+      ]
+    },
+    "speedtest-b.example.com": {
+      "record_name": "speedtest-b.example.com",
+      "enabled": true,
+      "preferred_primary_uuid": "replace-with-node-uuid-3",
+      "backup_uuids": [
+        "replace-with-node-uuid-4"
+      ],
+      "forward_rules": [
+        {
+          "listen_port": 443,
+          "remote_host": "5.6.7.8",
+          "remote_port": 8443
+        }
+      ]
+    }
+  },
+  "ssh": {
+    "user": "root",
+    "port": 22,
+    "password": "ssh-password",
+    "private_key": "~/.ssh/id_rsa",
+    "connect_timeout": 10,
+    "remote_config_path": "/etc/realm/config.toml"
+  }
+}

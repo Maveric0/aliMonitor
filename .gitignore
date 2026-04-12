@@ -1,0 +1,11 @@
+__pycache__/
+*.py[cod]
+*.pyo
+
+.git/
+.pytest_cache/
+
+settings.json
+komari_state.json
+forward_installed.json
+tag_cache.json

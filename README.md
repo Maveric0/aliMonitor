@@ -1,0 +1,57 @@
+# aliMonitor
+
+Multi-domain frontend failover and forwarding for Komari.
+
+This root directory is the only project that needs to be copied to a server.
+For a fresh install, copy the whole directory to any location on the server and run:
+
+```bash
+bash run.sh
+```
+
+For an in-place upgrade on a server that is already running `aliMonitor`, copy the new project version to the server and run:
+
+```bash
+bash upgrade.sh
+```
+
+## Main entry points
+
+- `failover_realm.py`: monitor loop, failover logic, forwarding provisioning, CLI
+- `failover_webui.py`: WebUI launcher
+- `failover_webui_app.py`: WebUI HTTP backend
+- `webui_assets/`: WebUI static assets
+
+## Config files
+
+- `settings.json`: live runtime config, intentionally gitignored
+- `settings.multi-domain.example.json`: primary template used by `init`
+- `settings.komari.example.json`: legacy single-domain example
+- `config.toml`: legacy single-domain frontend forwarding file
+- `iepl_config.toml`: IEPL forwarding template
+
+## Deployment assets
+
+- `run.sh`: one-click first install for Linux servers
+- `upgrade.sh`: one-click code upgrade that preserves runtime state
+- `scripts/install.sh`: install and enable systemd services
+- `scripts/check.sh`: non-destructive package checks
+- `systemd/`: `aliMonitor.service` and `aliMonitor-webui.service`
+- `docs/DEPLOY.md`: deployment notes
+
+## Runtime-generated files
+
+These are created automatically after startup and should not be committed:
+
+- `komari_state.json`
+- `forward_installed.json`
+- `tag_cache.json`
+
+## Compatibility
+
+The current mainline config format is `frontend_domains`.
+
+The following files are kept only for compatibility with older single-domain setups:
+
+- `settings.komari.example.json`
+- `config.toml`

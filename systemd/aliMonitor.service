@@ -1,0 +1,15 @@
+[Unit]
+Description=aliMonitor failover service
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/aliMonitor
+ExecStart=/usr/bin/python3 /opt/aliMonitor/failover_realm.py run
+Restart=always
+RestartSec=5
+User=root
+
+[Install]
+WantedBy=multi-user.target

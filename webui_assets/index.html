@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>aliMonitor WebUI</title>
+  <link rel="stylesheet" href="/static/app.css">
+</head>
+<body>
+  <div class="page">
+    <header class="hero panel">
+      <div class="hero-main">
+        <div>
+          <p class="eyebrow">aliMonitor</p>
+          <h1>多域名独立主备与域名级转发</h1>
+          <p class="hero-copy">每个域名独立维护主机、备用顺序、DNS 和入口规则，IEPL 保持现有模式。</p>
+        </div>
+        <div class="hero-actions">
+          <button id="sync-all-btn" class="btn btn-primary">同步全部域名</button>
+          <button id="add-domain-btn" class="btn btn-secondary">新增域名</button>
+          <button id="refresh-btn" class="btn btn-ghost">刷新概览</button>
+          <button id="refresh-logs-btn" class="btn btn-ghost">刷新日志</button>
+        </div>
+      </div>
+      <div id="flash" class="flash"></div>
+      <div id="stats" class="stats-grid"></div>
+    </header>
+
+    <div class="workspace">
+      <section class="panel diagnostics-shell">
+        <div class="section-head">
+          <div>
+            <p class="section-kicker">Diagnostics</p>
+            <h2>诊断面板</h2>
+          </div>
+        </div>
+        <div class="tab-bar diagnostics-tabs">
+          <button id="diagnostics-tab-summary" class="tab-btn" type="button" data-diagnostics-tab="summary">运行摘要</button>
+          <button id="diagnostics-tab-config" class="tab-btn" type="button" data-diagnostics-tab="config">配置概览</button>
+          <button id="diagnostics-tab-logs" class="tab-btn" type="button" data-diagnostics-tab="logs">日志</button>
+        </div>
+        <div class="diagnostics-panels">
+          <section id="diagnostics-panel-summary" class="diagnostics-panel">
+            <div id="summary"></div>
+          </section>
+          <section id="diagnostics-panel-config" class="diagnostics-panel" hidden>
+            <pre id="config-summary" class="code-block diagnostics-code"></pre>
+          </section>
+          <section id="diagnostics-panel-logs" class="diagnostics-panel" hidden>
+            <pre id="logs" class="code-block diagnostics-code"></pre>
+          </section>
+        </div>
+      </section>
+
+      <section class="panel main-shell">
+        <div class="section-head">
+          <div>
+            <p class="section-kicker">Workspace</p>
+            <h2>操作面板</h2>
+          </div>
+        </div>
+        <div class="tab-bar main-tabs">
+          <button id="main-tab-domains" class="tab-btn" type="button" data-main-section="domains">域名管理</button>
+          <button id="main-tab-frontend" class="tab-btn" type="button" data-main-section="frontend">前端节点</button>
+          <button id="main-tab-iepl" class="tab-btn" type="button" data-main-section="iepl">IEPL</button>
+        </div>
+
+        <div class="main-panels">
+          <section id="main-section-domains" class="main-section">
+            <div class="module-head">
+              <div>
+                <p class="section-kicker">Frontend Domains</p>
+                <h2>域名管理</h2>
+              </div>
+            </div>
+            <div id="domains" class="domain-grid"></div>
+          </section>
+
+          <section id="main-section-frontend" class="main-section" hidden>
+            <div class="module-head">
+              <div>
+                <p class="section-kicker">Frontend Nodes</p>
+                <h2>前端节点</h2>
+              </div>
+            </div>
+            <div id="frontend-nodes"></div>
+          </section>
+
+          <section id="main-section-iepl" class="main-section" hidden>
+            <div class="module-stack">
+              <section class="module-card">
+                <div class="section-head">
+                  <div>
+                    <p class="section-kicker">IEPL Rules</p>
+                    <h2>IEPL 规则</h2>
+                  </div>
+                  <div class="button-row">
+                    <button id="add-iepl-rule-btn" class="btn btn-secondary">新增 IEPL 规则</button>
+                    <button id="cleanup-frontend-legacy-btn" class="btn btn-ghost">清理前端 legacy</button>
+                  </div>
+                </div>
+                <div id="iepl-rules"></div>
+              </section>
+
+              <section class="module-card">
+                <div class="section-head">
+                  <div>
+                    <p class="section-kicker">IEPL Nodes</p>
+                    <h2>IEPL 节点</h2>
+                  </div>
+                </div>
+                <div id="iepl-nodes"></div>
+              </section>
+            </div>
+          </section>
+        </div>
+      </section>
+    </div>
+  </div>
+
+  <div id="modal-root"></div>
+  <script src="/static/app.js"></script>
+</body>
+</html>

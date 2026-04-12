@@ -1,0 +1,27 @@
+[network]
+no_tcp = false
+use_udp = true
+
+[[endpoints]]
+listen = "0.0.0.0:12345"
+remote = "1.1.1.1:12345"
+
+[[endpoints]]
+listen = "0.0.0.0:12346"
+remote = "1.1.1.1:12346"
+
+[[endpoints]]
+listen = "0.0.0.0:12347"
+remote = "1.1.1.1:12347"
+
+[[endpoints]]
+listen = "0.0.0.0:12348"
+remote = "1.1.1.1:12348"
+
+[[endpoints]]
+listen = "0.0.0.0:12349"
+remote = "1.1.1.1:12349"
+
+[[endpoints]]
+listen = "0.0.0.0:40981"
+remote = "1.1.1.1:40981"
