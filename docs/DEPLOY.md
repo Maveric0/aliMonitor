@@ -73,3 +73,4 @@ journalctl -u aliMonitor-webui.service -n 100 --no-pager
 - `settings.multi-domain.example.json` is the primary template.
 - `settings.komari.example.json` and `config.toml` are legacy compatibility files.
 - `settings.json` is intentionally not tracked in git.
+- `frontend/` is the React + Vite + TypeScript source; `webui_assets/` is the committed build output that Python serves directly.

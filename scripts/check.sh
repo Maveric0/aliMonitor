@@ -17,18 +17,23 @@ require_file "$BASE_DIR/failover_webui.py"
 require_file "$BASE_DIR/failover_webui_app.py"
 require_file "$BASE_DIR/settings.json"
 require_file "$BASE_DIR/webui_assets/index.html"
-require_file "$BASE_DIR/webui_assets/app.css"
-require_file "$BASE_DIR/webui_assets/app.js"
+
+if [ ! -d "$BASE_DIR/webui_assets/assets" ] || [ -z "$(find "$BASE_DIR/webui_assets/assets" -maxdepth 1 -type f -print -quit)" ]; then
+  echo "[x] missing built webui assets under webui_assets/assets" >&2
+  exit 1
+fi
 
 python3 - <<'PY'
 import json
 from pathlib import Path
+import failover_realm as fr
 
 for path in ["settings.json", "settings.multi-domain.example.json"]:
-    data = json.loads(Path(path).read_text(encoding="utf-8"))
+    json.loads(Path(path).read_text(encoding="utf-8"))
     print(f"[+] json ok: {path}")
-    if path == "settings.json" and "frontend_domains" not in data:
-        raise SystemExit("[x] settings.json missing frontend_domains")
+
+fr.load_settings()
+print("[+] settings.json load_settings ok")
 PY
 
 python3 failover_realm.py --help >/dev/null

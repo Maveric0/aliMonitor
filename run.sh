@@ -60,8 +60,10 @@ verify_source_tree() {
   require_file "$SOURCE_DIR/systemd/aliMonitor.service"
   require_file "$SOURCE_DIR/systemd/aliMonitor-webui.service"
   require_file "$SOURCE_DIR/webui_assets/index.html"
-  require_file "$SOURCE_DIR/webui_assets/app.css"
-  require_file "$SOURCE_DIR/webui_assets/app.js"
+  if [ ! -d "$SOURCE_DIR/webui_assets/assets" ] || [ -z "$(find "$SOURCE_DIR/webui_assets/assets" -maxdepth 1 -type f -print -quit)" ]; then
+    echo "[x] missing built webui assets under $SOURCE_DIR/webui_assets/assets" >&2
+    exit 1
+  fi
 }
 
 copy_preserved_file() {

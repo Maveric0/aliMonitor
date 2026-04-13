@@ -20,7 +20,8 @@ bash upgrade.sh
 - `failover_realm.py`: monitor loop, failover logic, forwarding provisioning, CLI
 - `failover_webui.py`: WebUI launcher
 - `failover_webui_app.py`: WebUI HTTP backend
-- `webui_assets/`: WebUI static assets
+- `frontend/`: React + Vite + TypeScript WebUI source
+- `webui_assets/`: committed WebUI build output served by Python
 
 ## Config files
 
@@ -38,6 +39,19 @@ bash upgrade.sh
 - `scripts/check.sh`: non-destructive package checks
 - `systemd/`: `aliMonitor.service` and `aliMonitor-webui.service`
 - `docs/DEPLOY.md`: deployment notes
+
+## Frontend build
+
+The WebUI source lives under `frontend/`.
+Rebuild the committed static assets with:
+
+```bash
+cd frontend
+npm install
+npm run build
+```
+
+The build output is written back into `webui_assets/`, which is what the Python WebUI serves at runtime.
 
 When both `/opt/aliMonitor` and `/opt/aliMonitor/deploy/aliMonitor` exist during migration, the root-level `config.toml` and `iepl_config.toml` are treated as authoritative. The legacy nested copies are only used as a fallback when the root files are missing.
 

@@ -4,6 +4,8 @@ __pycache__/
 
 .git/
 .pytest_cache/
+frontend/node_modules/
+.tmp/
 
 settings.json
 komari_state.json

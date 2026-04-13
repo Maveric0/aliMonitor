@@ -38,10 +38,13 @@ require_file "$BASE_DIR/failover_webui_app.py"
 require_file "$BASE_DIR/config.toml"
 require_file "$BASE_DIR/iepl_config.toml"
 require_file "$BASE_DIR/webui_assets/index.html"
-require_file "$BASE_DIR/webui_assets/app.css"
-require_file "$BASE_DIR/webui_assets/app.js"
 require_file "$SYSTEMD_DIR/aliMonitor.service"
 require_file "$SYSTEMD_DIR/aliMonitor-webui.service"
+
+if [ ! -d "$BASE_DIR/webui_assets/assets" ] || [ -z "$(find "$BASE_DIR/webui_assets/assets" -maxdepth 1 -type f -print -quit)" ]; then
+  echo "[x] missing built webui assets under $BASE_DIR/webui_assets/assets" >&2
+  exit 1
+fi
 
 settings_ready() {
   if [ ! -e "$BASE_DIR/settings.json" ]; then

@@ -2,13 +2,14 @@
 import argparse
 import copy
 import json
+import mimetypes
 import pathlib
 import shutil
 import subprocess
 import threading
 import traceback
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-from urllib.parse import urlparse
+from urllib.parse import unquote, urlparse
 
 import failover_realm as core
 
@@ -16,8 +17,6 @@ import failover_realm as core
 BASE_DIR = pathlib.Path(__file__).resolve().parent
 STATIC_DIR = BASE_DIR / "webui_assets"
 INDEX_PATH = STATIC_DIR / "index.html"
-CSS_PATH = STATIC_DIR / "app.css"
-JS_PATH = STATIC_DIR / "app.js"
 ACTION_LOCK = threading.Lock()
 
 
@@ -31,6 +30,27 @@ def read_text(path: pathlib.Path) -> str:
     if not path.exists():
         raise RuntimeError(f"missing static file: {path}")
     return path.read_text(encoding="utf-8")
+
+
+def resolve_static_path(request_path: str) -> pathlib.Path:
+    decoded = unquote(request_path or "/")
+    if decoded == "/":
+        return INDEX_PATH
+    relative = pathlib.PurePosixPath(decoded.lstrip("/"))
+    if any(part == ".." for part in relative.parts):
+        raise ApiError("invalid static path", status=404)
+    candidate = (STATIC_DIR / pathlib.Path(*relative.parts)).resolve()
+    static_root = STATIC_DIR.resolve()
+    if candidate != static_root and static_root not in candidate.parents:
+        raise ApiError("invalid static path", status=404)
+    if not candidate.exists() or not candidate.is_file():
+        raise ApiError(f"not found: {decoded}", status=404)
+    return candidate
+
+
+def guess_content_type(path: pathlib.Path) -> str:
+    content_type, _ = mimetypes.guess_type(str(path))
+    return content_type or "application/octet-stream"
 
 
 def read_settings_text_for_setup() -> str:
@@ -591,10 +611,10 @@ class Handler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
-    def _send_file(self, path: pathlib.Path, content_type: str) -> None:
-        content = read_text(path).encode("utf-8")
+    def _send_file(self, path: pathlib.Path, content_type: str | None = None) -> None:
+        content = path.read_bytes()
         self.send_response(200)
-        self.send_header("Content-Type", content_type)
+        self.send_header("Content-Type", content_type or guess_content_type(path))
         self.send_header("Cache-Control", "no-store")
         self.send_header("Content-Length", str(len(content)))
         self.end_headers()
@@ -626,15 +646,6 @@ class Handler(BaseHTTPRequestHandler):
     def do_GET(self) -> None:
         parsed = urlparse(self.path)
         try:
-            if parsed.path == "/":
-                self._send_file(INDEX_PATH, "text/html; charset=utf-8")
-                return
-            if parsed.path == "/static/app.css":
-                self._send_file(CSS_PATH, "text/css; charset=utf-8")
-                return
-            if parsed.path == "/static/app.js":
-                self._send_file(JS_PATH, "application/javascript; charset=utf-8")
-                return
             if parsed.path == "/api/overview":
                 self._send_json({"ok": True, "data": build_overview()})
                 return
@@ -644,7 +655,7 @@ class Handler(BaseHTTPRequestHandler):
             if parsed.path == "/api/logs":
                 self._send_json({"ok": True, "data": read_log_tail()})
                 return
-            self._send_json({"ok": False, "error": f"not found: {parsed.path}"}, status=404)
+            self._send_file(resolve_static_path(parsed.path))
         except ApiError as exc:
             self._send_json({"ok": False, "error": str(exc)}, status=exc.status)
         except Exception as exc:
