@@ -378,6 +378,7 @@ export function App() {
                         onToggleMenu={() =>
                           setOpenDomainActionMenu((current) => (current === domain.record_name ? null : domain.record_name))
                         }
+                        onCloseMenu={() => setOpenDomainActionMenu(null)}
                         onEdit={() => openEditDomain(domain)}
                         onSync={() =>
                           void runAction(`domain:${domain.record_name}`, async () => {
@@ -387,20 +388,20 @@ export function App() {
                           })
                         }
                         onSwitch={() =>
-                          void runAction(`domain:${domain.record_name}`, async () => {
+                          runAction(`domain:${domain.record_name}`, async () => {
                             const result = await api.switchDomainNow(domain.record_name);
                             pushToast("success", result.message);
                             await loadOverview();
                           })
                         }
                         onReinstall={() =>
-                          void runAction(`domain:${domain.record_name}`, async () => {
+                          runAction(`domain:${domain.record_name}`, async () => {
                             const result = await api.reinstallDomainForward(domain.record_name);
                             pushToast("success", result.message);
                             await loadOverview();
                           })
                         }
-                        onDelete={() => void deleteDomain(domain.record_name)}
+                        onDelete={() => deleteDomain(domain.record_name)}
                       />
                     ))}
                   </div>

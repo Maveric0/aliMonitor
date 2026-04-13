@@ -22,6 +22,7 @@ export function DomainCard({
   pending,
   onToggleExpanded,
   onToggleMenu,
+  onCloseMenu,
   onEdit,
   onSync,
   onSwitch,
@@ -34,13 +35,20 @@ export function DomainCard({
   pending: boolean;
   onToggleExpanded: () => void;
   onToggleMenu: () => void;
+  onCloseMenu: () => void;
   onEdit: () => void;
   onSync: () => void;
-  onSwitch: () => void;
-  onReinstall: () => void;
-  onDelete: () => void;
+  onSwitch: () => Promise<void>;
+  onReinstall: () => Promise<void>;
+  onDelete: () => Promise<void>;
 }) {
   const status = formatStatusLabel(domain.current_primary);
+
+  const runMenuAction = (action: () => Promise<void>) => {
+    void action().finally(() => {
+      onCloseMenu();
+    });
+  };
 
   return (
     <article className="domain-card">
@@ -49,7 +57,7 @@ export function DomainCard({
           <h3>{domain.record_name}</h3>
           <p>{domain.enabled ? "已启用" : "已停用"}</p>
         </div>
-        <div className="domain-card-actions-shell">
+        <div className="domain-card-actions-shell domain-card-menu-wrap">
           <div className="domain-card-actions">
             <Button tone="secondary" busy={pending} onClick={onSync}>
               同步
@@ -60,23 +68,22 @@ export function DomainCard({
             <Button tone="ghost" disabled={pending} onClick={onToggleExpanded}>
               {expanded ? "收起详情" : "详情"}
             </Button>
-            <div className="domain-card-menu-wrap">
-              <Button tone="ghost" disabled={pending} onClick={onToggleMenu}>
-                操作
+            <Button tone="ghost" disabled={pending} onClick={onToggleMenu} aria-expanded={menuOpen}>
+              操作
+            </Button>
+          </div>
+
+          <div className={`domain-card-action-stack ${menuOpen ? "is-open" : ""}`}>
+            <div className="domain-card-action-stack-inner">
+              <Button tone="secondary" disabled={pending} onClick={() => runMenuAction(onSwitch)}>
+                手动切换
               </Button>
-              {menuOpen ? (
-                <div className="domain-card-menu">
-                  <Button tone="secondary" disabled={pending} onClick={onSwitch}>
-                    手动切换
-                  </Button>
-                  <Button tone="secondary" disabled={pending} onClick={onReinstall}>
-                    重装转发
-                  </Button>
-                  <Button tone="danger" disabled={pending} onClick={onDelete}>
-                    删除
-                  </Button>
-                </div>
-              ) : null}
+              <Button tone="secondary" disabled={pending} onClick={() => runMenuAction(onReinstall)}>
+                重装转发
+              </Button>
+              <Button tone="danger" disabled={pending} onClick={() => runMenuAction(onDelete)}>
+                删除
+              </Button>
             </div>
           </div>
         </div>

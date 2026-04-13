@@ -359,32 +359,52 @@ textarea {
 }
 
 .domain-card-actions-shell {
-  overflow-x: auto;
+  display: grid;
+  justify-items: end;
+  gap: 10px;
 }
 
 .domain-card-actions {
   flex-wrap: wrap;
   justify-content: flex-end;
-  align-items: flex-start;
+  align-items: center;
 }
 
 .domain-card-menu-wrap {
-  position: relative;
+  width: 100%;
 }
 
-.domain-card-menu {
-  position: absolute;
-  right: 0;
-  top: calc(100% + 8px);
-  z-index: 20;
-  min-width: 180px;
-  background: rgba(12, 17, 24, 0.98);
-  border: 1px solid rgba(82, 96, 117, 0.35);
-  border-radius: 16px;
-  padding: 10px;
+.domain-card-action-stack {
+  width: min(220px, 100%);
+  display: grid;
+  justify-self: end;
+  grid-template-rows: 0fr;
+  opacity: 0;
+  transform: translateY(-8px);
+  pointer-events: none;
+  transition:
+    grid-template-rows 220ms ease,
+    opacity 180ms ease,
+    transform 220ms ease;
+}
+
+.domain-card-action-stack.is-open {
+  grid-template-rows: 1fr;
+  opacity: 1;
+  transform: translateY(0);
+  pointer-events: auto;
+}
+
+.domain-card-action-stack-inner {
+  min-height: 0;
+  overflow: hidden;
   display: grid;
   gap: 8px;
-  box-shadow: var(--shadow);
+}
+
+.domain-card-action-stack .btn {
+  width: 100%;
+  justify-content: center;
 }
 
 .domain-card-tags {
