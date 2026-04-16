@@ -417,6 +417,13 @@ def parse_positive_int(value, field_name: str) -> int:
     return parsed
 
 
+def parse_optional_string(value) -> str | None:
+    if value is None:
+        return None
+    text = str(value).strip()
+    return text or None
+
+
 def parse_forward_rule_payload(payload: dict) -> tuple[int, str, int]:
     listen_port = parse_port(payload.get("listen_port"), "listen_port")
     remote_host = str(payload.get("remote_host", "")).strip()
@@ -676,7 +683,7 @@ class Handler(BaseHTTPRequestHandler):
             elif parsed.path == "/api/frontend-domain-save":
                 result = self._perform_action(
                     lambda: action_save_frontend_domain(
-                        str(payload.get("original_record_name", "")).strip() or None,
+                        parse_optional_string(payload.get("original_record_name")),
                         payload.get("domain") if isinstance(payload.get("domain"), dict) else payload,
                     )
                 )
