@@ -45,7 +45,11 @@ export function describeDns(domain: DomainRecord): string {
 }
 
 export function parsePositivePort(raw: string, label: string): number {
-  const parsed = Number.parseInt(raw.trim(), 10);
+  const trimmed = raw.trim();
+  if (!/^[0-9]+$/.test(trimmed)) {
+    throw new Error(`${label} 必须在 1-65535 之间`);
+  }
+  const parsed = Number.parseInt(trimmed, 10);
   if (!Number.isInteger(parsed) || parsed < 1 || parsed > 65535) {
     throw new Error(`${label} 必须在 1-65535 之间`);
   }

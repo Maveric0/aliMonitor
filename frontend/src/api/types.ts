@@ -5,6 +5,11 @@ export interface ApiEnvelope<T> {
   error?: string;
 }
 
+export interface AuthStatusPayload {
+  password_configured: boolean;
+  authenticated: boolean;
+}
+
 export interface SetupPayload {
   configured: boolean;
   validation_error: string;

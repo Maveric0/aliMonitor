@@ -4,6 +4,7 @@ set -euo pipefail
 BASE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 SYSTEMD_DIR="$BASE_DIR/systemd"
 TARGET_DIR="/opt/aliMonitor"
+WEBUI_ENV_FILE="/etc/aliMonitor-webui.env"
 
 require_cmd() {
   local cmd="$1"
@@ -63,11 +64,35 @@ PY
   return 1
 }
 
+ensure_webui_env() {
+  if [ -e "$WEBUI_ENV_FILE" ]; then
+    chmod 600 "$WEBUI_ENV_FILE"
+    return
+  fi
+
+  local password
+  password="$(python3 - <<'PY'
+import secrets
+print(secrets.token_urlsafe(24))
+PY
+)"
+  local old_umask
+  old_umask="$(umask)"
+  umask 077
+  printf 'ALIMONITOR_WEBUI_PASSWORD=%s\n' "$password" > "$WEBUI_ENV_FILE"
+  umask "$old_umask"
+  chmod 600 "$WEBUI_ENV_FILE"
+  echo "[+] created WebUI password file: $WEBUI_ENV_FILE"
+  echo "[!] read the WebUI password with: sudo cat $WEBUI_ENV_FILE"
+}
+
 if [ "$BASE_DIR" != "$TARGET_DIR" ]; then
   echo "[x] current directory is $BASE_DIR, expected $TARGET_DIR" >&2
   echo "    copy this whole directory to $TARGET_DIR first, then run install.sh again" >&2
   exit 1
 fi
+
+ensure_webui_env
 
 install -m 0644 "$SYSTEMD_DIR/aliMonitor.service" /etc/systemd/system/aliMonitor.service
 install -m 0644 "$SYSTEMD_DIR/aliMonitor-webui.service" /etc/systemd/system/aliMonitor-webui.service

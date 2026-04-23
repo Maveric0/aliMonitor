@@ -52,6 +52,18 @@ textarea {
   padding: 28px;
 }
 
+.auth-page-shell {
+  max-width: 560px;
+  min-height: 100vh;
+  display: grid;
+  align-items: center;
+}
+
+.auth-form {
+  display: grid;
+  gap: 16px;
+}
+
 .workspace-shell,
 .section-stack,
 .module-stack,

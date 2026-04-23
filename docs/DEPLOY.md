@@ -16,6 +16,7 @@ bash run.sh
 - sync the project to `/opt/aliMonitor`
 - preserve an existing `settings.json`, forwarding config, and runtime state files
 - start `aliMonitor-webui.service`
+- create `/etc/aliMonitor-webui.env` with a random WebUI login password when it does not already exist
 - start `aliMonitor.service` only when `settings.json` exists and passes validation
 
 If `settings.json` is missing or invalid, open the WebUI and complete initialization there.
@@ -47,6 +48,16 @@ After syncing the new code, it reinstalls the systemd units, restarts the WebUI 
 
 - `aliMonitor.service`: `python3 /opt/aliMonitor/failover_realm.py run`
 - `aliMonitor-webui.service`: `python3 /opt/aliMonitor/failover_webui.py --host 0.0.0.0 --port 8080`
+
+The WebUI listens on `0.0.0.0:8080` and requires `ALIMONITOR_WEBUI_PASSWORD`.
+The install script stores it in `/etc/aliMonitor-webui.env` with mode `600`.
+Read the generated password with:
+
+```bash
+sudo cat /etc/aliMonitor-webui.env
+```
+
+For production internet-facing access, put the WebUI behind HTTPS reverse proxy authentication or an SSH tunnel.
 
 ## Requirements
 

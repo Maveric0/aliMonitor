@@ -1,13 +1,20 @@
 #!/usr/bin/env python3
 import argparse
+import hashlib
+import hmac
 import copy
 import json
 import mimetypes
+import os
 import pathlib
+import re
+import secrets
 import shutil
 import subprocess
 import threading
+import time
 import traceback
+from http.cookies import SimpleCookie
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import unquote, urlparse
 
@@ -18,12 +25,91 @@ BASE_DIR = pathlib.Path(__file__).resolve().parent
 STATIC_DIR = BASE_DIR / "webui_assets"
 INDEX_PATH = STATIC_DIR / "index.html"
 ACTION_LOCK = threading.Lock()
+AUTH_SESSION_LOCK = threading.Lock()
+AUTH_ACTIVE_NONCES: set[str] = set()
+AUTH_COOKIE_NAME = "aliMonitor_session"
+AUTH_SESSION_MAX_AGE_SEC = 24 * 60 * 60
+STRICT_INTEGER_RE = re.compile(r"^[0-9]+$")
 
 
 class ApiError(RuntimeError):
     def __init__(self, message: str, status: int = 400):
         super().__init__(message)
         self.status = int(status)
+
+
+def get_webui_password() -> str:
+    return os.environ.get("ALIMONITOR_WEBUI_PASSWORD", "").strip()
+
+
+def auth_secret(password: str) -> bytes:
+    return hashlib.sha256(password.encode("utf-8")).digest()
+
+
+def sign_auth_payload(password: str, payload: str) -> str:
+    return hmac.new(auth_secret(password), payload.encode("utf-8"), hashlib.sha256).hexdigest()
+
+
+def make_auth_token(password: str, now: int | None = None) -> str:
+    issued = int(now if now is not None else time.time())
+    nonce = secrets.token_urlsafe(18)
+    payload = f"{issued}.{nonce}"
+    signature = sign_auth_payload(password, payload)
+    return f"{payload}.{signature}"
+
+
+def verify_auth_token(password: str, token: str, now: int | None = None) -> bool:
+    if not password or not token:
+        return False
+    parts = str(token).split(".")
+    if len(parts) != 3:
+        return False
+    issued_text, nonce, signature = parts
+    if not STRICT_INTEGER_RE.fullmatch(issued_text) or not nonce or not signature:
+        return False
+    try:
+        issued = int(issued_text)
+    except ValueError:
+        return False
+    current_time = int(now if now is not None else time.time())
+    if issued > current_time + 60:
+        return False
+    if current_time - issued > AUTH_SESSION_MAX_AGE_SEC:
+        return False
+    payload = f"{issued_text}.{nonce}"
+    expected = sign_auth_payload(password, payload)
+    return secrets.compare_digest(expected, signature)
+
+
+def auth_token_nonce(token: str) -> str:
+    parts = str(token).split(".")
+    return parts[1] if len(parts) == 3 else ""
+
+
+def activate_auth_token(token: str) -> None:
+    nonce = auth_token_nonce(token)
+    if nonce:
+        with AUTH_SESSION_LOCK:
+            AUTH_ACTIVE_NONCES.add(nonce)
+
+
+def revoke_auth_token(token: str) -> None:
+    nonce = auth_token_nonce(token)
+    if nonce:
+        with AUTH_SESSION_LOCK:
+            AUTH_ACTIVE_NONCES.discard(nonce)
+
+
+def is_auth_token_active(token: str) -> bool:
+    nonce = auth_token_nonce(token)
+    if not nonce:
+        return False
+    with AUTH_SESSION_LOCK:
+        return nonce in AUTH_ACTIVE_NONCES
+
+
+def make_cookie_header(name: str, value: str, max_age: int) -> str:
+    return f"{name}={value}; Max-Age={max_age}; Path=/; HttpOnly; SameSite=Lax"
 
 
 def read_text(path: pathlib.Path) -> str:
@@ -397,21 +483,25 @@ def describe_apply_result(result: dict) -> str:
     return f"{summary}; {details}"
 
 
+def parse_strict_int(value, field_name: str) -> int:
+    if isinstance(value, bool):
+        raise ApiError(f"{field_name} must be an integer")
+    if isinstance(value, int):
+        return value
+    if isinstance(value, str) and STRICT_INTEGER_RE.fullmatch(value.strip()):
+        return int(value.strip())
+    raise ApiError(f"{field_name} must be an integer")
+
+
 def parse_port(value, field_name: str) -> int:
-    try:
-        port = int(value)
-    except (TypeError, ValueError):
-        raise ApiError(f"{field_name} must be an integer") from None
+    port = parse_strict_int(value, field_name)
     if port < 1 or port > 65535:
         raise ApiError(f"{field_name} must be between 1 and 65535")
     return port
 
 
 def parse_positive_int(value, field_name: str) -> int:
-    try:
-        parsed = int(value)
-    except (TypeError, ValueError):
-        raise ApiError(f"{field_name} must be an integer") from None
+    parsed = parse_strict_int(value, field_name)
     if parsed <= 0:
         raise ApiError(f"{field_name} must be a positive integer")
     return parsed
@@ -609,12 +699,14 @@ class Handler(BaseHTTPRequestHandler):
     def log_message(self, fmt: str, *args) -> None:
         return
 
-    def _send_json(self, payload: dict, status: int = 200) -> None:
+    def _send_json(self, payload: dict, status: int = 200, extra_headers: list[tuple[str, str]] | None = None) -> None:
         body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
         self.send_response(status)
         self.send_header("Content-Type", "application/json; charset=utf-8")
         self.send_header("Cache-Control", "no-store")
         self.send_header("Content-Length", str(len(body)))
+        for name, value in extra_headers or []:
+            self.send_header(name, value)
         self.end_headers()
         self.wfile.write(body)
 
@@ -650,9 +742,65 @@ class Handler(BaseHTTPRequestHandler):
         with ACTION_LOCK:
             return callback()
 
+    def _auth_cookie_value(self) -> str:
+        raw_cookie = self.headers.get("Cookie", "")
+        if not raw_cookie:
+            return ""
+        cookie = SimpleCookie()
+        try:
+            cookie.load(raw_cookie)
+        except Exception:
+            return ""
+        morsel = cookie.get(AUTH_COOKIE_NAME)
+        return morsel.value if morsel is not None else ""
+
+    def _is_authenticated(self) -> bool:
+        token = self._auth_cookie_value()
+        return verify_auth_token(get_webui_password(), token) and is_auth_token_active(token)
+
+    def _auth_status(self) -> dict:
+        password_configured = bool(get_webui_password())
+        return {
+            "password_configured": password_configured,
+            "authenticated": password_configured and self._is_authenticated(),
+        }
+
+    def _require_auth(self) -> None:
+        if not get_webui_password():
+            raise ApiError("WebUI password is not configured. Set ALIMONITOR_WEBUI_PASSWORD.", status=503)
+        if not self._is_authenticated():
+            raise ApiError("authentication required", status=401)
+
+    def _handle_login(self) -> None:
+        payload = self._read_json()
+        password = get_webui_password()
+        if not password:
+            raise ApiError("WebUI password is not configured. Set ALIMONITOR_WEBUI_PASSWORD.", status=503)
+        supplied = str(payload.get("password", ""))
+        if not hmac.compare_digest(password, supplied):
+            raise ApiError("invalid password", status=401)
+        token = make_auth_token(password)
+        activate_auth_token(token)
+        self._send_json(
+            {"ok": True, "data": {"password_configured": True, "authenticated": True}},
+            extra_headers=[("Set-Cookie", make_cookie_header(AUTH_COOKIE_NAME, token, AUTH_SESSION_MAX_AGE_SEC))],
+        )
+
+    def _handle_logout(self) -> None:
+        revoke_auth_token(self._auth_cookie_value())
+        self._send_json(
+            {"ok": True, "data": {"password_configured": bool(get_webui_password()), "authenticated": False}},
+            extra_headers=[("Set-Cookie", make_cookie_header(AUTH_COOKIE_NAME, "", 0))],
+        )
+
     def do_GET(self) -> None:
         parsed = urlparse(self.path)
         try:
+            if parsed.path == "/api/auth/status":
+                self._send_json({"ok": True, "data": self._auth_status()})
+                return
+            if parsed.path.startswith("/api/"):
+                self._require_auth()
             if parsed.path == "/api/overview":
                 self._send_json({"ok": True, "data": build_overview()})
                 return
@@ -671,6 +819,14 @@ class Handler(BaseHTTPRequestHandler):
     def do_POST(self) -> None:
         parsed = urlparse(self.path)
         try:
+            if parsed.path == "/api/auth/login":
+                self._handle_login()
+                return
+            if parsed.path == "/api/auth/logout":
+                self._handle_logout()
+                return
+            if parsed.path.startswith("/api/"):
+                self._require_auth()
             payload = self._read_json()
             if parsed.path == "/api/sync":
                 result = self._perform_action(lambda: action_sync())

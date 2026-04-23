@@ -6,6 +6,7 @@ import ipaddress
 import json
 import os
 import pathlib
+import re
 import shlex
 import socket
 import subprocess
@@ -36,6 +37,7 @@ UPTIME_LIMIT_DAYS = 80
 TRAFFIC_LIMIT_BYTES = 450 * 1024 * 1024 * 1024
 BYTES_PER_GB = 1024 * 1024 * 1024
 DEFAULT_TRAFFIC_LIMIT_GB = TRAFFIC_LIMIT_BYTES // BYTES_PER_GB
+STRICT_INTEGER_RE = re.compile(r"^[0-9]+$")
 
 
 def now_iso() -> str:
@@ -89,6 +91,16 @@ def normalize_remote_host(remote_host: str) -> str:
         return str(ipaddress.ip_address(remote_host))
     except ValueError:
         return remote_host
+
+
+def parse_strict_integer(value, field_name: str) -> int:
+    if isinstance(value, bool):
+        raise RuntimeError(f"{field_name} must be an integer")
+    if isinstance(value, int):
+        return value
+    if isinstance(value, str) and STRICT_INTEGER_RE.fullmatch(value.strip()):
+        return int(value.strip())
+    raise RuntimeError(f"{field_name} must be an integer")
 
 
 def run_cmd(
@@ -214,11 +226,14 @@ def normalize_frontend_forward_rules(raw_rules, record_name: str) -> list[dict]:
     for raw_rule in raw_rules:
         if not isinstance(raw_rule, dict):
             raise RuntimeError(f"frontend_domains[{record_name}] contains an invalid forward rule")
-        try:
-            listen_port = int(raw_rule.get("listen_port"))
-            remote_port = int(raw_rule.get("remote_port"))
-        except (TypeError, ValueError):
-            raise RuntimeError(f"frontend_domains[{record_name}] forward rule ports must be integers") from None
+        listen_port = parse_strict_integer(
+            raw_rule.get("listen_port"),
+            f"frontend_domains[{record_name}] forward rule listen_port",
+        )
+        remote_port = parse_strict_integer(
+            raw_rule.get("remote_port"),
+            f"frontend_domains[{record_name}] forward rule remote_port",
+        )
         if listen_port < 1 or listen_port > 65535:
             raise RuntimeError(f"frontend_domains[{record_name}] listen_port out of range: {listen_port}")
         if remote_port < 1 or remote_port > 65535:

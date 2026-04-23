@@ -1,5 +1,5 @@
-import { startTransition, useEffect, useState } from "react";
-import { api } from "../api/client";
+import { startTransition, useEffect, useState, type FormEvent } from "react";
+import { api, setUnauthorizedHandler } from "../api/client";
 import type {
   DomainDraft,
   DomainRecord,
@@ -18,6 +18,7 @@ import { SetupPanel } from "../features/setup/SetupPanel";
 import { formatDate } from "../lib/format";
 
 type MainSection = "domains" | "frontend" | "iepl";
+type AuthState = "checking" | "authenticated" | "anonymous" | "unconfigured";
 
 interface DomainModalState {
   mode: "create" | "edit";
@@ -92,7 +93,61 @@ function HeroStats({ setup, overview }: { setup: SetupPayload | null; overview: 
   );
 }
 
+function AuthPanel({
+  mode,
+  password,
+  pending,
+  error,
+  onPasswordChange,
+  onSubmit,
+}: {
+  mode: "login" | "unconfigured";
+  password: string;
+  pending: boolean;
+  error: string;
+  onPasswordChange: (value: string) => void;
+  onSubmit: (event: FormEvent<HTMLFormElement>) => void;
+}) {
+  return (
+    <main className="page-shell auth-page-shell">
+      <Panel kicker="aliMonitor" title="WebUI Login">
+        {mode === "unconfigured" ? (
+          <div className="inline-alert inline-alert-error">
+            ALIMONITOR_WEBUI_PASSWORD is not configured. Set it in /etc/aliMonitor-webui.env and restart
+            aliMonitor-webui.service.
+          </div>
+        ) : (
+          <form className="auth-form" onSubmit={onSubmit}>
+            <div className="field">
+              <label htmlFor="webui-password">Password</label>
+              <input
+                id="webui-password"
+                className="input"
+                type="password"
+                value={password}
+                autoFocus
+                autoComplete="current-password"
+                onChange={(event) => onPasswordChange(event.target.value)}
+              />
+            </div>
+            {error ? <div className="inline-alert inline-alert-error">{error}</div> : null}
+            <div className="inline-actions">
+              <Button tone="primary" busy={pending} type="submit">
+                Login
+              </Button>
+            </div>
+          </form>
+        )}
+      </Panel>
+    </main>
+  );
+}
+
 export function App() {
+  const [authState, setAuthState] = useState<AuthState>("checking");
+  const [loginPassword, setLoginPassword] = useState("");
+  const [loginError, setLoginError] = useState("");
+  const [loginPending, setLoginPending] = useState(false);
   const [bootstrapData, setBootstrapData] = useState<SetupPayload | null>(null);
   const [overview, setOverview] = useState<OverviewPayload | null>(null);
   const [activeMainSection, setActiveMainSection] = useState<MainSection>("domains");
@@ -168,9 +223,36 @@ export function App() {
   };
 
   useEffect(() => {
+    setUnauthorizedHandler(() => {
+      startTransition(() => {
+        setAuthState("anonymous");
+        setBootstrapData(null);
+        setOverview(null);
+      });
+    });
+    return () => setUnauthorizedHandler(null);
+  }, []);
+
+  useEffect(() => {
     let cancelled = false;
     const bootstrap = async () => {
       try {
+        const auth = await api.getAuthStatus();
+        if (!auth.password_configured) {
+          if (!cancelled) {
+            setAuthState("unconfigured");
+          }
+          return;
+        }
+        if (!auth.authenticated) {
+          if (!cancelled) {
+            setAuthState("anonymous");
+          }
+          return;
+        }
+        if (!cancelled) {
+          setAuthState("authenticated");
+        }
         const payload = await loadBootstrap();
         if (!cancelled && payload.configured) {
           await loadOverview();
@@ -253,10 +335,60 @@ export function App() {
     });
   };
 
+  const login = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!loginPassword) {
+      setLoginError("Password is required");
+      return;
+    }
+    setLoginPending(true);
+    setLoginError("");
+    try {
+      await api.login(loginPassword);
+      setAuthState("authenticated");
+      setLoginPassword("");
+      const payload = await loadBootstrap();
+      if (payload.configured) {
+        await loadOverview();
+      }
+    } catch (error) {
+      setLoginError(error instanceof Error ? error.message : String(error));
+    } finally {
+      setLoginPending(false);
+      setBooting(false);
+    }
+  };
+
+  const logout = async () => {
+    await runAction("auth:logout", async () => {
+      await api.logout();
+      setAuthState("anonymous");
+      setBootstrapData(null);
+      setOverview(null);
+      setLoginPassword("");
+    });
+  };
+
   const isGlobalPending =
     pendingKeys["overview:syncAll"] || pendingKeys["overview:refresh"] || pendingKeys["logs:refresh"];
 
-  if (booting && !bootstrapData) {
+  if (authState === "anonymous" || authState === "unconfigured") {
+    return (
+      <>
+        <ToastStack toasts={toasts} onDismiss={dismissToast} />
+        <AuthPanel
+          mode={authState === "unconfigured" ? "unconfigured" : "login"}
+          password={loginPassword}
+          pending={loginPending}
+          error={loginError}
+          onPasswordChange={setLoginPassword}
+          onSubmit={login}
+        />
+      </>
+    );
+  }
+
+  if ((booting || authState === "checking") && !bootstrapData) {
     return (
       <main className="page-shell">
         <Panel kicker="aliMonitor" title="WebUI 加载中">
@@ -305,8 +437,17 @@ export function App() {
                 >
                   刷新概览
                 </Button>
+                <Button tone="ghost" busy={!!pendingKeys["auth:logout"]} onClick={() => void logout()}>
+                  Logout
+                </Button>
               </div>
-            ) : undefined
+            ) : (
+              <div className="inline-actions">
+                <Button tone="ghost" busy={!!pendingKeys["auth:logout"]} onClick={() => void logout()}>
+                  Logout
+                </Button>
+              </div>
+            )
           }
         >
           <p className="hero-copy">

@@ -1,22 +1,32 @@
 import type {
   ActionMessage,
   ApiEnvelope,
+  AuthStatusPayload,
   DomainSaveRequest,
   LogPayload,
   OverviewPayload,
   SetupPayload,
 } from "./types";
 
+let unauthorizedHandler: (() => void) | null = null;
+
+export function setUnauthorizedHandler(handler: (() => void) | null) {
+  unauthorizedHandler = handler;
+}
+
 async function parseResponse<T>(response: Response): Promise<T> {
   const payload = (await response.json().catch(() => ({}))) as ApiEnvelope<T>;
   if (!response.ok || !payload.ok) {
+    if (response.status === 401) {
+      unauthorizedHandler?.();
+    }
     throw new Error(payload.error || `${response.status} ${response.statusText}`);
   }
   return (payload.data ?? payload.result) as T;
 }
 
 async function get<T>(path: string): Promise<T> {
-  const response = await fetch(path, { cache: "no-store" });
+  const response = await fetch(path, { cache: "no-store", credentials: "same-origin" });
   return parseResponse<T>(response);
 }
 
@@ -24,12 +34,16 @@ async function post<T>(path: string, body?: unknown): Promise<T> {
   const response = await fetch(path, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
+    credentials: "same-origin",
     body: JSON.stringify(body ?? {}),
   });
   return parseResponse<T>(response);
 }
 
 export const api = {
+  getAuthStatus: () => get<AuthStatusPayload>("/api/auth/status"),
+  login: (password: string) => post<AuthStatusPayload>("/api/auth/login", { password }),
+  logout: () => post<AuthStatusPayload>("/api/auth/logout", {}),
   getBootstrap: () => get<SetupPayload>("/api/bootstrap"),
   getOverview: () => get<OverviewPayload>("/api/overview"),
   getLogs: () => get<LogPayload>("/api/logs"),
